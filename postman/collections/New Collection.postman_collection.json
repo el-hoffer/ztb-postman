@@ -1,0 +1,122 @@
+{
+  "info": {
+    "_postman_id": "7fe8f70f-6f70-4d66-9c62-e953ebab65db",
+    "name": "ZTB",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "New Request",
+      "id": "08d8fc1f-97c2-43c5-9a08-3b2eee85fe8f",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": ""
+        }
+      },
+      "response": []
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "id": "4f25ac75-5223-4e09-929d-9d790838c073",
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          "const authUrl = pm.collectionVariables.get(\"apiAuthEndpoint\");",
+          "if (!authUrl) throw new Error(\"Missing collection variable: apiAuthEndpoint\");",
+          "",
+          "const SKEW_MS = 30 * 1000;",
+          "const ONE_HOUR_MS = 60 * 60 * 1000;",
+          "",
+          "function tokenValid() {",
+          "  const token = pm.collectionVariables.get(\"accessToken\");",
+          "  const expiresAt = Number(pm.collectionVariables.get(\"tokenExpires\") || 0);",
+          "  return token && expiresAt && (Date.now() + SKEW_MS) < expiresAt;",
+          "}",
+          "",
+          "if (!tokenValid()) {",
+          "  const apiKey = pm.collectionVariables.get(\"apiKey\");",
+          "  if (!apiKey) throw new Error(\"Missing collection variable: apiKey\");",
+          "",
+          "  pm.sendRequest({",
+          "    url: authUrl,",
+          "    method: \"POST\",",
+          "    header: { \"Content-Type\": \"application/json\", \"Accept\": \"application/json\" },",
+          "    body: { mode: \"raw\", raw: JSON.stringify({ api_key: apiKey }) }",
+          "  }, (err, res) => {",
+          "    if (err) throw err;",
+          "    if (!res || res.code >= 400) throw new Error(`Auth failed: HTTP ${res && res.code} - ${res && res.text()}`);",
+          "",
+          "    const data = res.json();",
+          "    const token = data?.result?.delegate_token;",
+          "    if (!token) throw new Error(\"Auth response missing result.delegate_token\");",
+          "",
+          "    pm.collectionVariables.set(\"accessToken\", token);",
+          "    pm.collectionVariables.set(\"tokenExpires\", String(Date.now() + ONE_HOUR_MS));",
+          "",
+          "    // rerun the original request",
+          "    postman.setNextRequest(pm.info.requestName);",
+          "  });",
+          "",
+          "  // stop current request until token is fetched",
+          "  postman.setNextRequest(null);",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "id": "f676967c-7b26-4672-ac41-56f8c1632b88",
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "id": "ad3bdbaf-0faa-400c-aecc-8ac268aaee3b",
+      "key": "apiEndpoint",
+      "value": ""
+    },
+    {
+      "id": "04213025-eb40-4c80-b5bf-bd716ab9d3c4",
+      "key": "apiAuthEndpoint",
+      "value": ""
+    },
+    {
+      "id": "0c2cf903-1e9f-436a-8b1b-1ec533c98b67",
+      "key": "apiKey",
+      "value": ""
+    },
+    {
+      "id": "4805f4c0-2c6b-4dbf-b0c6-2bb911208e84",
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "id": "2adc791f-5344-4fff-a781-6a22b1915201",
+      "key": "tokenExpires",
+      "value": ""
+    }
+  ]
+}
