@@ -6,13 +6,20 @@
   },
   "item": [
     {
-      "name": "New Request",
+      "name": "All Gateways",
       "id": "08d8fc1f-97c2-43c5-9a08-3b2eee85fe8f",
       "request": {
         "method": "GET",
         "header": [],
         "url": {
-          "raw": ""
+          "raw": "{{apiEndpoint}}v2/Gateway/",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Gateway",
+            ""
+          ]
         }
       },
       "response": []

@@ -1,0 +1,2446 @@
+{
+  "info": {
+    "_postman_id": "4d78c204-8e95-4472-97d4-d7c750401015",
+    "name": "AJG ZT800 Deployment",
+    "description": "Collection of commonly automated ZTB tasks",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "663588"
+  },
+  "item": [
+    {
+      "name": "Fetch Template ID",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Pull templateName from the CSV data file (column: templateName)",
+              "const targetName = pm.iterationData.get(\"templateName\");",
+              "",
+              "pm.test(\"CSV provides templateName\", function () {",
+              "  pm.expect(targetName, \"Missing CSV column 'templateName' for this iteration\").to.be.a(\"string\").and.not.empty;",
+              "});",
+              "",
+              "// Parse response",
+              "const body = pm.response.json();",
+              "",
+              "// Find matching template by name",
+              "const match = (body.result || []).find(o => o && o.name === targetName);",
+              "",
+              "pm.test(`Template \"${targetName}\" exists`, function () {",
+              "  pm.expect(match, `No object found with name \"${targetName}\"`).to.exist;",
+              "  pm.expect(match.id, \"Matched object missing 'id'\").to.be.a(\"string\").and.not.empty;",
+              "});",
+              "",
+              "// Set environment variable",
+              "if (match && match.id) {",
+              "  pm.environment.set(\"templateId\", match.id);",
+              "  console.log(`templateId set for \"${targetName}\":`, match.id);",
+              "}"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{apiEndpoint}}v3/templates",
+          "host": [
+            "{{apiEndpoint}}v3"
+          ],
+          "path": [
+            "templates"
+          ]
+        },
+        "description": "This request fetches all the configured templates, then matches on the template name as derived from the \"templateName\" variable in the csv data file for the run and sets that template's ID as an env variable."
+      },
+      "response": []
+    },
+    {
+      "name": "Create Site",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Response includes activation_links array', function () {",
+              "  try {",
+              "    const json = pm.response.json();",
+              "",
+              "    pm.expect(json, \"Site creation problem: Activation Links not present in response\")",
+              "      .to.have.property('activation_links');",
+              "",
+              "    pm.expect(json.activation_links, \"Site creation problem: activation_links is not an array\")",
+              "      .to.be.an('array');",
+              "",
+              "    pm.expect(json.activation_links.length, \"Site creation problem: activation_links is empty\")",
+              "      .to.be.above(0);",
+              "",
+              "  } catch (e) {",
+              "    // Stop the Runner / Collection run if something goes wrong",
+              "    if (pm.execution && pm.execution.setNextRequest) {",
+              "      pm.execution.setNextRequest(null);",
+              "    }",
+              "    throw e; // keep the test marked as failed with the real error",
+              "  }",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"site_name\": \"{{siteName}}\",\n    \"dhcp_server_ip\": \"{{dhcp1}}\",\n    \"location\": {\n        \"is_existing_location\": false,\n        \"details\": {\n            \"country\": \"{{siteCountry}}\",\n            \"name\": \"{{ziaLocationName}}\"\n        }\n    },\n    \"gateways\": [\n        {\n            \"gateway_name\": \"{{gateway1Name}}\",\n            \"is_wan_dhcp\": false,\n            \"default_gw_ip\": \"{{wan1Gateway}}\",\n            \"wan_ip_address\": \"{{wan1IP}}\",\n            \"wan_subnet_mask\": \"{{wan1CIDRPrefix}}\",\n            \"wan_interface\": \"{{gw1WANInterface}}\"\n        },\n        {\n            \"gateway_name\": \"{{gateway2Name}}\",\n            \"is_wan_dhcp\": false,\n            \"default_gw_ip\": \"{{wan2Gateway}}\",\n            \"wan_ip_address\": \"{{wan2IP}}\",\n            \"wan_subnet_mask\": \"{{wan2CIDRPrefix}}\",\n            \"wan_interface\": \"{{gw2WANInterface}}\"\n        }\n    ],\n    \"private_dns\": \"1.1.1.1,8.8.8.8\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v3/templates/{{templateId}}/deploy_site",
+          "host": [
+            "{{apiEndpoint}}v3"
+          ],
+          "path": [
+            "templates",
+            "{{templateId}}",
+            "deploy_site"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Fetch Site Details",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "",
+              "const siteId = body?.rows?.[0]?.cluster_info?.site_id;",
+              "",
+              "const clusterId = body?.rows?.[0]?.cluster_info?.cluster_id;",
+              "",
+              "const gateways = body?.rows?.[0]?.gateways;",
+              "",
+              "pm.test(\"site_id and cluster_id present in response\", function () {",
+              "  pm.expect(siteId, \"Could not find rows[0].cluster_info.site_id\").to.be.ok;",
+              "  pm.expect(clusterId, \"Could not find rows[0].cluster_info.cluster_id\").to.be.ok;",
+              "});",
+              "",
+              "pm.test(\"gateways array exists and has at least 2 entries\", function () {",
+              "  pm.expect(gateways).to.be.an(\"array\");",
+              "  pm.expect(gateways.length).to.be.at.least(2);",
+              "});",
+              "",
+              "if (siteId) {",
+              "  pm.environment.set(\"siteId\", String(siteId));",
+              "  console.log(\"Set env var siteId =\", siteId);",
+              "}",
+              "",
+              "if (clusterId) {",
+              "  pm.environment.set(\"clusterId\", clusterId);",
+              "  console.log(\"Set env var clusterId =\", clusterId);",
+              "}",
+              "",
+              "if (gateways) {",
+              "  pm.environment.set(\"gateway1Id\", gateways[0].gateway_id);",
+              "  pm.environment.set(\"gateway2Id\", gateways[1].gateway_id);",
+              "",
+              "  console.log(\"Set gateway1Id =\", gateways[0].gateway_id);",
+              "  console.log(\"Set gateway2Id =\", gateways[1].gateway_id);",
+              "}"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{apiEndpoint}}v3/Gateway/?search={{siteName}}",
+          "host": [
+            "{{apiEndpoint}}v3"
+          ],
+          "path": [
+            "Gateway",
+            ""
+          ],
+          "query": [
+            {
+              "key": "search",
+              "value": "{{siteName}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Add Private DNS",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty/whitespace-only response body\").to.equal(\"\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"member_attributes\": {\n        \"ip_prefix\": [\n            \"1.1.1.1/32\",\n            \"8.8.8.8/32\",\n            \"{{privateDNS1}}/32\",\n            \"{{privateDNS2}}/32\",\n            \"{{privateDNS3}}/32\"\n        ]\n    }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/group-membership?site_id={{siteId}}&group_name=System-Private-DNS-Servers-Group",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "group-membership"
+          ],
+          "query": [
+            {
+              "key": "site_id",
+              "value": "{{siteId}}"
+            },
+            {
+              "key": "group_name",
+              "value": "System-Private-DNS-Servers-Group"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Configure VRRP",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Validate HTTP status code is 200",
+              "pm.test(\"HTTP status is 200\", function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "// Validate payload contains the expected success message",
+              "pm.test('Payload message is \"VRRP config updated successfully\"', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json).to.have.property(\"message\", \"VRRP config updated successfully\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"advert_int\": 1,\n    \"authentication_password\": \"\",\n    \"priority\": 254,\n    \"vip\": \"0.0.0.0\",\n    \"virtual_router_id\": \"237\",\n    \"track_interface\": {\n        \"{{gateway1Id}}\": \"ebond0,ge8\",\n        \"{{gateway2Id}}\": \"ebond0,ge8\"\n    },\n    \"vrrp_interface\": {\n        \"{{gateway1Id}}\": \"ge4\",\n        \"{{gateway2Id}}\": \"ge4\"\n    }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v3/vrrp/config/{{clusterId}}",
+          "host": [
+            "{{apiEndpoint}}v3"
+          ],
+          "path": [
+            "vrrp",
+            "config",
+            "{{clusterId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update DHCP",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"per_site_dns\": \"\",\n  \"dhcp_service\": \"inherit\",\n  \"dhcp_server_ip\": \"{{dhcp1}},{{dhcp2}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/cluster/{{clusterId}}",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "cluster",
+            "{{clusterId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Fetch SNMP Profile ID",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "",
+              "// Read the desired profile name from variables (should be set via CSV)",
+              "const desiredProfileName = pm.variables.get(\"snmpv3profile\");",
+              "",
+              "pm.test('Postman variable \"snmpv3profile\" is set', function () {",
+              "  pm.expect(desiredProfileName, '\"snmpv3profile\" is not set').to.exist;",
+              "});",
+              "",
+              "const match = (body.result || []).find(p => p.profile_name === desiredProfileName);",
+              "",
+              "pm.test(`Found profile_name \"${desiredProfileName}\"`, function () {",
+              "  pm.expect(match, `No SNMPv3 profile named \"${desiredProfileName}\" found`).to.exist;",
+              "});",
+              "",
+              "if (match && typeof match.profile_id !== \"undefined\") {",
+              "  pm.environment.set(\"profileId\", String(match.profile_id));",
+              "  console.log(`Saved profileId=${match.profile_id} to environment`);",
+              "}"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{apiEndpoint}}v2/snmp/profile",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "snmp",
+            "profile"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Configure SNMP",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty/whitespace-only response body\").to.equal(\"\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"snmp_profile_id\":{{profileId}}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/cluster/{{clusterId}}/snmp-profile",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "cluster",
+            "{{clusterId}}",
+            "snmp-profile"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Fetch GW1 Interface IDs",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "",
+              "//read WAN interface name from CSV variables",
+              "const gw1WANInterface = pm.variables.get(\"gw1WANInterface\");",
+              "",
+              "pm.test('Postman variable \"gw1WANInterface\" is set', function () {",
+              "  pm.expect(gw1WANInterface, '\"gw1WANInterface\" is not set in site CSV').to.exist;",
+              "});",
+              "",
+              "// handle either: [ { ... } ] or { ... }",
+              "const root = Array.isArray(body) ? body[0] : body;",
+              "",
+              "if (!root || !Array.isArray(root.interfaces)) {",
+              "  throw new Error('Response does not contain an \"interfaces\" array in the expected location.');",
+              "}",
+              "",
+              "const match = root.interfaces.find(i => i && i.name === gw1WANInterface);",
+              "",
+              "if (!match) {",
+              "  throw new Error(`No interface found with name \"${gw1WANInterface}\" for gateway 1.`);",
+              "}",
+              "",
+              "pm.environment.set(\"gw1WanIntId\", match.id);",
+              "console.log(`Set env var gw1WanIntId=${match.id} (matched interface name=${gw1WANInterface})`);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Gateway/interfaces?gatewayId={{gateway1Id}}",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Gateway",
+            "interfaces"
+          ],
+          "query": [
+            {
+              "key": "gatewayId",
+              "value": "{{gateway1Id}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Fetch GW2 Interface IDs",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "",
+              "//read WAN interface name from CSV variables",
+              "const gw2WANInterface = pm.variables.get(\"gw2WANInterface\");",
+              "",
+              "pm.test('Postman variable \"gw2WANInterface\" is set', function () {",
+              "  pm.expect(gw2WANInterface, '\"gw2WANInterface\" is not set in site CSV').to.exist;",
+              "});",
+              "",
+              "// handle either: [ { ... } ] or { ... }",
+              "const root = Array.isArray(body) ? body[0] : body;",
+              "",
+              "if (!root || !Array.isArray(root.interfaces)) {",
+              "  throw new Error('Response does not contain an \"interfaces\" array in the expected location.');",
+              "}",
+              "",
+              "const match = root.interfaces.find(i => i && i.name === gw2WANInterface);",
+              "",
+              "if (!match) {",
+              "  throw new Error(`No interface found with name \"${gw2WANInterface}\" for gateway 2.`);",
+              "}",
+              "",
+              "pm.environment.set(\"gw2WanIntId\", match.id);",
+              "console.log(`Set env var gw2WanIntId=${match.id} (matched interface name=${gw2WANInterface})`);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Gateway/interfaces?gatewayId={{gateway2Id}}",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Gateway",
+            "interfaces"
+          ],
+          "query": [
+            {
+              "key": "gatewayId",
+              "value": "{{gateway2Id}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Fetch Hub details",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "",
+              "const hub1Name = pm.variables.get(\"rtHub1Name\");",
+              "const hub2Name = pm.variables.get(\"rtHub2Name\");",
+              "",
+              "if (!hub1Name || !hub2Name) {",
+              "  throw new Error(\"Missing required rtHub1Name and/or rtHub2Name in CSV\");",
+              "}",
+              "",
+              "const rows = Array.isArray(body?.rows) ? body.rows : [];",
+              "if (!rows.length) {",
+              "  throw new Error(\"Response payload does not contain a non-empty 'rows' array\");",
+              "}",
+              "",
+              "function findClusterIdByLocation(locationName) {",
+              "  const match = rows.find(r => r?.location === locationName);",
+              "  const clusterId = match?.cluster_info?.cluster_id;",
+              "  return (clusterId === 0 || clusterId) ? clusterId : null;",
+              "}",
+              "",
+              "const hub1ClusterId = findClusterIdByLocation(hub1Name);",
+              "const hub2ClusterId = findClusterIdByLocation(hub2Name);",
+              "",
+              "if (hub1ClusterId === null) {",
+              "  throw new Error(`No row found with location == '${hub1Name}' (or missing cluster_info.cluster_id)`);",
+              "}",
+              "if (hub2ClusterId === null) {",
+              "  throw new Error(`No row found with location == '${hub2Name}' (or missing cluster_info.cluster_id)`);",
+              "}",
+              "",
+              "pm.environment.set(\"hub1ClusterId\", String(hub1ClusterId));",
+              "pm.environment.set(\"hub2ClusterId\", String(hub2ClusterId));",
+              "",
+              "// Optional: basic assertions",
+              "pm.test(\"hub1ClusterId was set\", () => pm.expect(pm.environment.get(\"hub1ClusterId\")).to.eql(String(hub1ClusterId)));",
+              "pm.test(\"hub2ClusterId was set\", () => pm.expect(pm.environment.get(\"hub2ClusterId\")).to.eql(String(hub2ClusterId)));"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{apiEndpoint}}v3/Gateway/?gateway_type=access",
+          "host": [
+            "{{apiEndpoint}}v3"
+          ],
+          "path": [
+            "Gateway",
+            ""
+          ],
+          "query": [
+            {
+              "key": "gateway_type",
+              "value": "access"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Configure NAM Routed Tunnels",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// 1) Status code is 200",
+              "pm.test(\"HTTP status is 200\", function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "// 2) Body has result.connect_to_hub === true",
+              "pm.test('\"connect_to_hub\" is true', function () {",
+              "  const body = pm.response.json();",
+              "",
+              "  pm.expect(body).to.have.property(\"result\");",
+              "  pm.expect(body.result).to.have.property(\"connect_to_hub\");",
+              "  pm.expect(body.result.connect_to_hub).to.eql(true);",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"connect_to_hub\": true,\n    \"gateways\": [\n        {\n            \"gateway_id\": \"{{gateway1Id}}\",\n            \"hub_id\": {{hub1ClusterId}},\n            \"interface_id\": \"{{gw1WanIntId}}\"\n        },\n        {\n            \"gateway_id\": \"{{gateway1Id}}\",\n            \"hub_id\": {{hub2ClusterId}},\n            \"interface_id\": \"{{gw1WanIntId}}\"\n        },\n        {\n            \"gateway_id\": \"{{gateway2Id}}\",\n            \"hub_id\": {{hub1ClusterId}},\n            \"interface_id\": \"{{gw2WanIntId}}\"\n        },\n        {\n            \"gateway_id\": \"{{gateway2Id}}\",\n            \"hub_id\": {{hub2ClusterId}},\n            \"interface_id\": \"{{gw2WanIntId}}\"\n        }\n    ],\n    \"hubs\": {\n        \"primary_id\": {{hub1ClusterId}}},\n        \"secondary_id\": {{hub2ClusterId}}\n    }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v3/CloudGateway/s2s/{{clusterId}}",
+          "host": [
+            "{{apiEndpoint}}v3"
+          ],
+          "path": [
+            "CloudGateway",
+            "s2s",
+            "{{clusterId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Fetch default DNS Policy IDs",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Confirm HTTP status is 200 and that policy IDs are captured",
+              "(function () {",
+              "  pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "  });",
+              "",
+              "  const body = pm.response.json();",
+              "",
+              "  pm.test(\"Response has result array\", function () {",
+              "    pm.expect(body).to.have.property(\"result\");",
+              "    pm.expect(body.result).to.be.an(\"array\");",
+              "    pm.expect(body.result.length).to.equal(3);",
+              "  });",
+              "",
+              "  // Set dnsPolicy1Id, dnsPolicy2Id, dnsPolicy3Id from result[0..2].policy.policy_id",
+              "  const keys = [\"dnsPolicy1Id\", \"dnsPolicy2Id\", \"dnsPolicy3Id\"];",
+              "",
+              "  keys.forEach((key, idx) => {",
+              "    const policyId = body?.result?.[idx]?.policy?.policy_id;",
+              "",
+              "    pm.test(`Policy ${idx + 1} has policy_id`, function () {",
+              "      pm.expect(policyId, `Missing policy_id at result[${idx}].policy.policy_id`).to.not.be.undefined;",
+              "      pm.expect(policyId).to.be.a(\"number\");",
+              "    });",
+              "",
+              "    if (policyId !== undefined && policyId !== null) {",
+              "      pm.environment.set(key, String(policyId));",
+              "    }",
+              "  });",
+              "})();"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "//Wait 5 seconds before sending this request",
+              "const delay = 5000; // 5 seconds",
+              "const start = Date.now();",
+              "while (Date.now() - start < delay);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": ""
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/group-policies?type=dns&site_id={{siteId}}",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "group-policies"
+          ],
+          "query": [
+            {
+              "key": "type",
+              "value": "dns"
+            },
+            {
+              "key": "site_id",
+              "value": "{{siteId}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Configure AJG NAM DNS Policies",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201 and no payload\", function () {",
+              "  pm.response.to.have.status(201);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[\n    {\n        \"sequence_number\": 1,\n        \"name\": \"Follow You Print to Central DNS\",\n        \"src_group_id_set\": [\n            2\n        ],\n        \"dst_group_id_set\": [\n            97\n        ],\n        \"action\": \"redirect\",\n        \"site_id\": \"{{siteId}}\",\n        \"type\": \"dns\",\n        \"policy_description\": \"\",\n        \"action_params\": {\n            \"dns_server_id\": 27,\n            \"cache_level\": \"no\"\n        },\n        \"policy_id\": null\n    },\n    {\n        \"sequence_number\": 2,\n        \"name\": \"AOVPN Trusted Network detection\",\n        \"src_group_id_set\": [\n            2\n        ],\n        \"dst_group_id_set\": [\n            67\n        ],\n        \"action\": \"redirect\",\n        \"site_id\": \"{{siteId}}\",\n        \"type\": \"dns\",\n        \"policy_description\": \"\",\n        \"action_params\": {\n            \"dns_server_id\": 27,\n            \"cache_level\": \"medium\"\n        },\n        \"policy_id\": null\n    },\n    {\n        \"sequence_number\": 3,\n        \"name\": \"VoIP Domain Forwarding\",\n        \"src_group_id_set\": [\n            2\n        ],\n        \"dst_group_id_set\": [\n            96,\n            93,\n            94\n        ],\n        \"action\": \"redirect\",\n        \"site_id\": \"{{siteId}}\",\n        \"type\": \"dns\",\n        \"policy_description\": \"\",\n        \"action_params\": {\n            \"dns_server_id\": 27,\n            \"cache_level\": \"no\"\n        },\n        \"policy_id\": null\n    }\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/group-policies/bulk",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "group-policies",
+            "bulk"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Configure Lab DNS Policies",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201 and no payload\", function () {",
+              "  pm.response.to.have.status(201);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[\n    {\n        \"sequence_number\": 1,\n        \"name\": \"Follow You Print to Central DNS\",\n        \"src_group_id_set\": [\n            2\n        ],\n        \"dst_group_id_set\": [\n            68\n        ],\n        \"action\": \"redirect\",\n        \"site_id\": \"{{siteId}}\",\n        \"type\": \"dns\",\n        \"policy_description\": \"\",\n        \"action_params\": {\n            \"dns_server_id\": 18,\n            \"cache_level\": \"no\"\n        },\n        \"policy_id\": null\n    },\n    {\n        \"sequence_number\": 2,\n        \"name\": \"AOVPN Trusted Network detection\",\n        \"src_group_id_set\": [\n            2\n        ],\n        \"dst_group_id_set\": [\n            68\n        ],\n        \"action\": \"redirect\",\n        \"site_id\": \"{{siteId}}\",\n        \"type\": \"dns\",\n        \"policy_description\": \"\",\n        \"action_params\": {\n            \"dns_server_id\": 18,\n            \"cache_level\": \"medium\"\n        },\n        \"policy_id\": null\n    },\n    {\n        \"sequence_number\": 3,\n        \"name\": \"VoIP Domain Forwarding\",\n        \"src_group_id_set\": [\n            2\n        ],\n        \"dst_group_id_set\": [\n            67,\n            36\n        ],\n        \"action\": \"redirect\",\n        \"site_id\": \"{{siteId}}\",\n        \"type\": \"dns\",\n        \"policy_description\": \"\",\n        \"action_params\": {\n            \"dns_server_id\": 18,\n            \"cache_level\": \"no\"\n        },\n        \"policy_id\": null\n    }\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/group-policies/bulk",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "group-policies",
+            "bulk"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Resequence Default DNS Policies",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"policy_sequence\": [\n        {\n            \"policy_id\": {{dnsPolicy1Id}},\n            \"sequence_number\": 4\n        },\n        {\n            \"policy_id\": {{dnsPolicy2Id}},\n            \"sequence_number\": 5\n        },\n        {\n            \"policy_id\": {{dnsPolicy3Id}},\n            \"sequence_number\": 6\n        }\n    ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/group-policies/resequence",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "group-policies",
+            "resequence"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Configure data VLAN",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const ip = pm.variables.get(\"dataVLANip\");",
+              "const prefixLen = Number(pm.variables.get(\"dataVLANCIDRPrefix\"));",
+              "",
+              "function ipToInt(ipStr) {",
+              "  const parts = ipStr.split(\".\").map(Number);",
+              "  if (parts.length !== 4 || parts.some(p => !Number.isInteger(p) || p < 0 || p > 255)) {",
+              "    throw new Error(`Invalid IPv4 address: ${ipStr}`);",
+              "  }",
+              "  // Use unsigned math",
+              "  return (((parts[0] << 24) >>> 0) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;",
+              "}",
+              "",
+              "function intToIp(intVal) {",
+              "  return [",
+              "    (intVal >>> 24) & 255,",
+              "    (intVal >>> 16) & 255,",
+              "    (intVal >>> 8) & 255,",
+              "    intVal & 255",
+              "  ].join(\".\");",
+              "}",
+              "",
+              "function prefixToMask(prefix) {",
+              "  if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) {",
+              "    throw new Error(`Invalid prefix length: ${prefix}`);",
+              "  }",
+              "  if (prefix === 0) return 0 >>> 0;",
+              "  return (0xFFFFFFFF << (32 - prefix)) >>> 0;",
+              "}",
+              "",
+              "// Compute network/prefix address",
+              "const ipInt = ipToInt(ip);",
+              "const maskInt = prefixToMask(prefixLen);",
+              "const networkInt = (ipInt & maskInt) >>> 0;",
+              "const networkIp = intToIp(networkInt);",
+              "",
+              "// Store results for use in the request",
+              "pm.variables.set(\"prefixAddress\", networkIp);",
+              "",
+              "console.log(`Input: ${ip}/${prefixLen} -> Prefix address: ${networkIp}`);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"HTTP status code is 200\", function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "",
+              "const vlanId = json?.result?.id;",
+              "const vlanName = json?.result?.name;",
+              "",
+              "if (!vlanId || !vlanName) {",
+              "  throw new Error(\"Missing json.result.id and/or json.result.name in response.\");",
+              "}",
+              "",
+              "pm.environment.set(\"vlanId\", vlanId);",
+              "pm.environment.set(\"vlanName\", vlanName);",
+              "",
+              "pm.test(\"vlanId and vlanName set\", function () {",
+              "  pm.expect(pm.environment.get(\"vlanId\")).to.eql(vlanId);",
+              "  pm.expect(pm.environment.get(\"vlanName\")).to.eql(vlanName);",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"subnet\":\"{{dataVLANCIDRPrefix}}\",\n    \"tag\":\"{{dataVLANTag}}\",\n    \"display_name\":\"Data\",\n    \"ip_range\":\"{{prefixAddress}}\",\n    \"zone\":\"LAN Zone\",\n    \"per_network_dns\":\"\",\n    \"dhcp_service\":\"inherit\",\n    \"dns_forwarding\":false,\n    \"dhcp_range\":\"\",\n    \"slash30_range\":\"\",\n    \"airgap_plus_mask\":0,\n    \"default_gateway\":\"{{dataVLANip}}\",\n    \"gateways\":\"{{gateway1Id}},{{gateway2Id}}\",\n    \"interface\":\"ebond0,ebond0\",\n    \"name\":\"Data-{{clusterId}}\",\n    \"cluster_id\":{{clusterId}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Enable Data VLAN",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"{{vlanName}}\",\n    \"subnet\": \"{{dataVLANCIDRPrefix}}\",\n    \"per_network_dns\": \"\",\n    \"status\": \"provisioned\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/update/{{vlanId}}",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "update",
+            "{{vlanId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Share data VLAN to RT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"id\": \"{{vlanId}}\",\n    \"share_over_vpn\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/share-over-vpn",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "share-over-vpn"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Set Data VLAN as DNS Proxy",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"HTTP 200 and expected payload\", function () {",
+              "  pm.expect(pm.response.code).to.equal(200);",
+              "",
+              "  const json = pm.response.json();",
+              "  pm.expect(json).to.deep.equal({",
+              "    statusCode: 200,",
+              "    message: \"Site Updated successfully!\"",
+              "  });",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"{{siteName}}\",\n    \"proxy_rt_vlan\": \"{{vlanId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Site/{{siteId}}",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Site",
+            "{{siteId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Configure VoIP VLAN",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const ip = pm.variables.get(\"voiceVLANip\");",
+              "const prefixLen = Number(pm.variables.get(\"voiceVLANCIDRPrefix\"));",
+              "",
+              "function ipToInt(ipStr) {",
+              "  const parts = ipStr.split(\".\").map(Number);",
+              "  if (parts.length !== 4 || parts.some(p => !Number.isInteger(p) || p < 0 || p > 255)) {",
+              "    throw new Error(`Invalid IPv4 address: ${ipStr}`);",
+              "  }",
+              "  // Use unsigned math",
+              "  return (((parts[0] << 24) >>> 0) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;",
+              "}",
+              "",
+              "function intToIp(intVal) {",
+              "  return [",
+              "    (intVal >>> 24) & 255,",
+              "    (intVal >>> 16) & 255,",
+              "    (intVal >>> 8) & 255,",
+              "    intVal & 255",
+              "  ].join(\".\");",
+              "}",
+              "",
+              "function prefixToMask(prefix) {",
+              "  if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) {",
+              "    throw new Error(`Invalid prefix length: ${prefix}`);",
+              "  }",
+              "  if (prefix === 0) return 0 >>> 0;",
+              "  return (0xFFFFFFFF << (32 - prefix)) >>> 0;",
+              "}",
+              "",
+              "// Compute network/prefix address",
+              "const ipInt = ipToInt(ip);",
+              "const maskInt = prefixToMask(prefixLen);",
+              "const networkInt = (ipInt & maskInt) >>> 0;",
+              "const networkIp = intToIp(networkInt);",
+              "",
+              "// Store results for use in the request",
+              "pm.variables.set(\"prefixAddress\", networkIp);",
+              "",
+              "console.log(`Input: ${ip}/${prefixLen} -> Prefix address: ${networkIp}`);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"HTTP status code is 200\", function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "",
+              "const vlanId = json?.result?.id;",
+              "const vlanName = json?.result?.name;",
+              "",
+              "if (!vlanId || !vlanName) {",
+              "  throw new Error(\"Missing json.result.id and/or json.result.name in response.\");",
+              "}",
+              "",
+              "pm.environment.set(\"vlanId\", vlanId);",
+              "pm.environment.set(\"vlanName\", vlanName);",
+              "",
+              "pm.test(\"vlanId and vlanName set\", function () {",
+              "  pm.expect(pm.environment.get(\"vlanId\")).to.eql(vlanId);",
+              "  pm.expect(pm.environment.get(\"vlanName\")).to.eql(vlanName);",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"subnet\":\"{{voiceVLANCIDRPrefix}}\",\n    \"tag\":\"{{voiceVLANTag}}\",\n    \"display_name\":\"Voice\",\n    \"ip_range\":\"{{prefixAddress}}\",\n    \"zone\":\"LAN Zone\",\n    \"per_network_dns\":\"\",\n    \"dhcp_service\":\"non_airgapped\",\n    \"dns_forwarding\":false,\n    \"dhcp_range\":\"\",\n    \"slash30_range\":\"\",\n    \"airgap_plus_mask\":0,\n    \"default_gateway\":\"{{voiceVLANip}}\",\n    \"gateways\":\"{{gateway1Id}},{{gateway2Id}}\",\n    \"interface\":\"ebond0,ebond0\",\n    \"name\":\"Voice-{{clusterId}}\",\n    \"cluster_id\":{{clusterId}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Enable VoIP VLAN",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"{{vlanName}}\",\n    \"subnet\": \"{{voiceVLANCIDRPrefix}}\",\n    \"per_network_dns\": \"\",\n    \"status\": \"provisioned\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/update/{{vlanId}}",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "update",
+            "{{vlanId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Share VoIP VLAN to RT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"id\": \"{{vlanId}}\",\n    \"share_over_vpn\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/share-over-vpn",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "share-over-vpn"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Configure Wireless Admin VLAN",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const ip = pm.variables.get(\"wirelessAdminVLANip\");",
+              "const prefixLen = Number(pm.variables.get(\"wirelessAdminVLANCIDRPrefix\"));",
+              "",
+              "function ipToInt(ipStr) {",
+              "  const parts = ipStr.split(\".\").map(Number);",
+              "  if (parts.length !== 4 || parts.some(p => !Number.isInteger(p) || p < 0 || p > 255)) {",
+              "    throw new Error(`Invalid IPv4 address: ${ipStr}`);",
+              "  }",
+              "  // Use unsigned math",
+              "  return (((parts[0] << 24) >>> 0) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;",
+              "}",
+              "",
+              "function intToIp(intVal) {",
+              "  return [",
+              "    (intVal >>> 24) & 255,",
+              "    (intVal >>> 16) & 255,",
+              "    (intVal >>> 8) & 255,",
+              "    intVal & 255",
+              "  ].join(\".\");",
+              "}",
+              "",
+              "function prefixToMask(prefix) {",
+              "  if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) {",
+              "    throw new Error(`Invalid prefix length: ${prefix}`);",
+              "  }",
+              "  if (prefix === 0) return 0 >>> 0;",
+              "  return (0xFFFFFFFF << (32 - prefix)) >>> 0;",
+              "}",
+              "",
+              "// Compute network/prefix address",
+              "const ipInt = ipToInt(ip);",
+              "const maskInt = prefixToMask(prefixLen);",
+              "const networkInt = (ipInt & maskInt) >>> 0;",
+              "const networkIp = intToIp(networkInt);",
+              "",
+              "// Store results for use in the request",
+              "pm.variables.set(\"prefixAddress\", networkIp);",
+              "",
+              "console.log(`Input: ${ip}/${prefixLen} -> Prefix address: ${networkIp}`);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"HTTP status code is 200\", function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "",
+              "const vlanId = json?.result?.id;",
+              "const vlanName = json?.result?.name;",
+              "",
+              "if (!vlanId || !vlanName) {",
+              "  throw new Error(\"Missing json.result.id and/or json.result.name in response.\");",
+              "}",
+              "",
+              "pm.environment.set(\"vlanId\", vlanId);",
+              "pm.environment.set(\"vlanName\", vlanName);",
+              "",
+              "pm.test(\"vlanId and vlanName set\", function () {",
+              "  pm.expect(pm.environment.get(\"vlanId\")).to.eql(vlanId);",
+              "  pm.expect(pm.environment.get(\"vlanName\")).to.eql(vlanName);",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"subnet\":\"{{wirelessAdminVLANCIDRPrefix}}\",\n    \"tag\":\"{{wirelessAdminVLANTag}}\",\n    \"display_name\":\"Wireless-Admin\",\n    \"ip_range\":\"{{prefixAddress}}\",\n    \"zone\":\"LAN Zone\",\n    \"per_network_dns\":\"\",\n    \"dhcp_service\":\"non_airgapped\",\n    \"dns_forwarding\":false,\n    \"dhcp_range\":\"\",\n    \"slash30_range\":\"\",\n    \"airgap_plus_mask\":0,\n    \"default_gateway\":\"{{wirelessAdminVLANip}}\",\n    \"gateways\":\"{{gateway1Id}},{{gateway2Id}}\",\n    \"interface\":\"ebond0,ebond0\",\n    \"name\":\"WLAdmin-{{clusterId}}\",\n    \"cluster_id\":{{clusterId}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Enable Wireless Admin VLAN",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"{{vlanName}}\",\n    \"subnet\": \"{{wirelessAdminVLANCIDRPrefix}}\",\n    \"per_network_dns\": \"\",\n    \"status\": \"provisioned\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/update/{{vlanId}}",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "update",
+            "{{vlanId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Share Wireless Admin VLAN to RT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"id\": \"{{vlanId}}\",\n    \"share_over_vpn\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/share-over-vpn",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "share-over-vpn"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Configure Wireless Trusted VLAN",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const ip = pm.variables.get(\"wirelessTrustedVLANip\");",
+              "const prefixLen = Number(pm.variables.get(\"wirelessTrustedVLANCIDRPrefix\"));",
+              "",
+              "function ipToInt(ipStr) {",
+              "  const parts = ipStr.split(\".\").map(Number);",
+              "  if (parts.length !== 4 || parts.some(p => !Number.isInteger(p) || p < 0 || p > 255)) {",
+              "    throw new Error(`Invalid IPv4 address: ${ipStr}`);",
+              "  }",
+              "  // Use unsigned math",
+              "  return (((parts[0] << 24) >>> 0) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;",
+              "}",
+              "",
+              "function intToIp(intVal) {",
+              "  return [",
+              "    (intVal >>> 24) & 255,",
+              "    (intVal >>> 16) & 255,",
+              "    (intVal >>> 8) & 255,",
+              "    intVal & 255",
+              "  ].join(\".\");",
+              "}",
+              "",
+              "function prefixToMask(prefix) {",
+              "  if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) {",
+              "    throw new Error(`Invalid prefix length: ${prefix}`);",
+              "  }",
+              "  if (prefix === 0) return 0 >>> 0;",
+              "  return (0xFFFFFFFF << (32 - prefix)) >>> 0;",
+              "}",
+              "",
+              "// Compute network/prefix address",
+              "const ipInt = ipToInt(ip);",
+              "const maskInt = prefixToMask(prefixLen);",
+              "const networkInt = (ipInt & maskInt) >>> 0;",
+              "const networkIp = intToIp(networkInt);",
+              "",
+              "// Store results for use in the request",
+              "pm.variables.set(\"prefixAddress\", networkIp);",
+              "",
+              "console.log(`Input: ${ip}/${prefixLen} -> Prefix address: ${networkIp}`);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"HTTP status code is 200\", function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "",
+              "const vlanId = json?.result?.id;",
+              "const vlanName = json?.result?.name;",
+              "",
+              "if (!vlanId || !vlanName) {",
+              "  throw new Error(\"Missing json.result.id and/or json.result.name in response.\");",
+              "}",
+              "",
+              "pm.environment.set(\"vlanId\", vlanId);",
+              "pm.environment.set(\"vlanName\", vlanName);",
+              "",
+              "pm.test(\"vlanId and vlanName set\", function () {",
+              "  pm.expect(pm.environment.get(\"vlanId\")).to.eql(vlanId);",
+              "  pm.expect(pm.environment.get(\"vlanName\")).to.eql(vlanName);",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"subnet\":\"{{wirelessTrustedVLANCIDRPrefix}}\",\n    \"tag\":\"{{wirelessTrustedVLANTag}}\",\n    \"display_name\":\"Wireless-Trusted\",\n    \"ip_range\":\"{{prefixAddress}}\",\n    \"zone\":\"LAN Zone\",\n    \"per_network_dns\":\"\",\n    \"dhcp_service\":\"inherit\",\n    \"dns_forwarding\":false,\n    \"dhcp_range\":\"\",\n    \"slash30_range\":\"\",\n    \"airgap_plus_mask\":0,\n    \"default_gateway\":\"{{wirelessTrustedVLANip}}\",\n    \"gateways\":\"{{gateway1Id}},{{gateway2Id}}\",\n    \"interface\":\"ebond0,ebond0\",\n    \"name\":\"WL-Trusted-{{clusterId}}\",\n    \"cluster_id\":{{clusterId}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Enable Wireless Trusted VLAN",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"{{vlanName}}\",\n    \"subnet\": \"{{wirelessTrustedVLANCIDRPrefix}}\",\n    \"per_network_dns\": \"\",\n    \"status\": \"provisioned\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/update/{{vlanId}}",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "update",
+            "{{vlanId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Share Wireless Trusted VLAN to RT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"id\": \"{{vlanId}}\",\n    \"share_over_vpn\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/share-over-vpn",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "share-over-vpn"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Configure Wireless Guest VLAN",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const ip = pm.variables.get(\"wirelessGuestVLANip\");",
+              "const prefixLen = Number(pm.variables.get(\"wirelessGuestVLANCIDRPrefix\"));",
+              "",
+              "function ipToInt(ipStr) {",
+              "  const parts = ipStr.split(\".\").map(Number);",
+              "  if (parts.length !== 4 || parts.some(p => !Number.isInteger(p) || p < 0 || p > 255)) {",
+              "    throw new Error(`Invalid IPv4 address: ${ipStr}`);",
+              "  }",
+              "  // Use unsigned math",
+              "  return (((parts[0] << 24) >>> 0) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;",
+              "}",
+              "",
+              "function intToIp(intVal) {",
+              "  return [",
+              "    (intVal >>> 24) & 255,",
+              "    (intVal >>> 16) & 255,",
+              "    (intVal >>> 8) & 255,",
+              "    intVal & 255",
+              "  ].join(\".\");",
+              "}",
+              "",
+              "function prefixToMask(prefix) {",
+              "  if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) {",
+              "    throw new Error(`Invalid prefix length: ${prefix}`);",
+              "  }",
+              "  if (prefix === 0) return 0 >>> 0;",
+              "  return (0xFFFFFFFF << (32 - prefix)) >>> 0;",
+              "}",
+              "",
+              "// Compute network/prefix address",
+              "const ipInt = ipToInt(ip);",
+              "const maskInt = prefixToMask(prefixLen);",
+              "const networkInt = (ipInt & maskInt) >>> 0;",
+              "const networkIp = intToIp(networkInt);",
+              "",
+              "// Store results for use in the request",
+              "pm.variables.set(\"prefixAddress\", networkIp);",
+              "",
+              "console.log(`Input: ${ip}/${prefixLen} -> Prefix address: ${networkIp}`);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"HTTP status code is 200\", function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "",
+              "const vlanId = json?.result?.id;",
+              "const vlanName = json?.result?.name;",
+              "",
+              "if (!vlanId || !vlanName) {",
+              "  throw new Error(\"Missing json.result.id and/or json.result.name in response.\");",
+              "}",
+              "",
+              "pm.environment.set(\"vlanId\", vlanId);",
+              "pm.environment.set(\"vlanName\", vlanName);",
+              "",
+              "pm.test(\"vlanId and vlanName set\", function () {",
+              "  pm.expect(pm.environment.get(\"vlanId\")).to.eql(vlanId);",
+              "  pm.expect(pm.environment.get(\"vlanName\")).to.eql(vlanName);",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"subnet\":\"{{wirelessGuestVLANCIDRPrefix}}\",\n    \"tag\":\"{{wirelessGuestVLANTag}}\",\n    \"display_name\":\"Wireless-Guest\",\n    \"ip_range\":\"{{prefixAddress}}\",\n    \"zone\":\"Guest\",\n    \"per_network_dns\":\"\",\n    \"dhcp_service\":\"inherit\",\n    \"dns_forwarding\":false,\n    \"dhcp_range\":\"\",\n    \"slash30_range\":\"\",\n    \"airgap_plus_mask\":0,\n    \"default_gateway\":\"{{wirelessGuestVLANip}}\",\n    \"gateways\":\"{{gateway1Id}},{{gateway2Id}}\",\n    \"interface\":\"ebond0,ebond0\",\n    \"name\":\"WL-Guest-{{clusterId}}\",\n    \"cluster_id\":{{clusterId}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Enable Wireless Guest VLAN",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"{{vlanName}}\",\n    \"subnet\": \"{{wirelessGuestVLANCIDRPrefix}}\",\n    \"per_network_dns\": \"\",\n    \"status\": \"provisioned\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/update/{{vlanId}}",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "update",
+            "{{vlanId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Share Wireless Guest VLAN to RT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"id\": \"{{vlanId}}\",\n    \"share_over_vpn\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/share-over-vpn",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "share-over-vpn"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Configure GW 1 Mgmt VLAN",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const ip = pm.variables.get(\"gw1MgmtIp\");",
+              "const prefixLen = Number(pm.variables.get(\"mgmtCIDRPrefix\"));",
+              "",
+              "function ipToInt(ipStr) {",
+              "  const parts = ipStr.split(\".\").map(Number);",
+              "  if (parts.length !== 4 || parts.some(p => !Number.isInteger(p) || p < 0 || p > 255)) {",
+              "    throw new Error(`Invalid IPv4 address: ${ipStr}`);",
+              "  }",
+              "  // Use unsigned math",
+              "  return (((parts[0] << 24) >>> 0) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;",
+              "}",
+              "",
+              "function intToIp(intVal) {",
+              "  return [",
+              "    (intVal >>> 24) & 255,",
+              "    (intVal >>> 16) & 255,",
+              "    (intVal >>> 8) & 255,",
+              "    intVal & 255",
+              "  ].join(\".\");",
+              "}",
+              "",
+              "function prefixToMask(prefix) {",
+              "  if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) {",
+              "    throw new Error(`Invalid prefix length: ${prefix}`);",
+              "  }",
+              "  if (prefix === 0) return 0 >>> 0;",
+              "  return (0xFFFFFFFF << (32 - prefix)) >>> 0;",
+              "}",
+              "",
+              "// Compute network/prefix address",
+              "const ipInt = ipToInt(ip);",
+              "const maskInt = prefixToMask(prefixLen);",
+              "const networkInt = (ipInt & maskInt) >>> 0;",
+              "const networkIp = intToIp(networkInt);",
+              "",
+              "// Store results for use in the request",
+              "pm.variables.set(\"prefixAddress\", networkIp);",
+              "",
+              "console.log(`Input: ${ip}/${prefixLen} -> Prefix address: ${networkIp}`);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"HTTP status code is 200\", function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "",
+              "const vlanId = json?.result?.id;",
+              "const vlanName = json?.result?.name;",
+              "",
+              "if (!vlanId || !vlanName) {",
+              "  throw new Error(\"Missing json.result.id and/or json.result.name in response.\");",
+              "}",
+              "",
+              "pm.environment.set(\"vlanId\", vlanId);",
+              "pm.environment.set(\"vlanName\", vlanName);",
+              "",
+              "pm.test(\"vlanId and vlanName set\", function () {",
+              "  pm.expect(pm.environment.get(\"vlanId\")).to.eql(vlanId);",
+              "  pm.expect(pm.environment.get(\"vlanName\")).to.eql(vlanName);",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"subnet\":\"{{mgmtCIDRPrefix}}\",\n    \"tag\":\"{{mgmtVLANTag}}\",\n    \"display_name\":\"gw1-mgmt\",\n    \"ip_range\":\"{{prefixAddress}}\",\n    \"zone\":\"Management Zone\",\n    \"per_network_dns\":\"\",\n    \"dhcp_service\":\"no_dhcp\",\n    \"dns_forwarding\":false,\n    \"dhcp_range\":\"\",\n    \"slash30_range\":\"\",\n    \"airgap_plus_mask\":0,\n    \"default_gateway\":\"{{gw1MgmtIp}}\",\n    \"gateways\":\"{{gateway1Id}}\",\n    \"interface\":\"ge3\",\n    \"name\":\"gw1-mgmt-{{clusterId}}\",\n    \"cluster_id\":{{clusterId}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Enable GW 1 Mgmt VLAN",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"{{vlanName}}\",\n    \"subnet\": \"{{mgmtCIDRPrefix}}\",\n    \"per_network_dns\": \"\",\n    \"status\": \"provisioned\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/update/{{vlanId}}",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "update",
+            "{{vlanId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Share Wireless GW 1 Mgmt VLAN to RT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"id\": \"{{vlanId}}\",\n    \"share_over_vpn\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/share-over-vpn",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "share-over-vpn"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Configure GW 2 Mgmt VLAN",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const ip = pm.variables.get(\"gw2MgmtIp\");",
+              "const prefixLen = Number(pm.variables.get(\"mgmtCIDRPrefix\"));",
+              "",
+              "function ipToInt(ipStr) {",
+              "  const parts = ipStr.split(\".\").map(Number);",
+              "  if (parts.length !== 4 || parts.some(p => !Number.isInteger(p) || p < 0 || p > 255)) {",
+              "    throw new Error(`Invalid IPv4 address: ${ipStr}`);",
+              "  }",
+              "  // Use unsigned math",
+              "  return (((parts[0] << 24) >>> 0) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;",
+              "}",
+              "",
+              "function intToIp(intVal) {",
+              "  return [",
+              "    (intVal >>> 24) & 255,",
+              "    (intVal >>> 16) & 255,",
+              "    (intVal >>> 8) & 255,",
+              "    intVal & 255",
+              "  ].join(\".\");",
+              "}",
+              "",
+              "function prefixToMask(prefix) {",
+              "  if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) {",
+              "    throw new Error(`Invalid prefix length: ${prefix}`);",
+              "  }",
+              "  if (prefix === 0) return 0 >>> 0;",
+              "  return (0xFFFFFFFF << (32 - prefix)) >>> 0;",
+              "}",
+              "",
+              "// Compute network/prefix address",
+              "const ipInt = ipToInt(ip);",
+              "const maskInt = prefixToMask(prefixLen);",
+              "const networkInt = (ipInt & maskInt) >>> 0;",
+              "const networkIp = intToIp(networkInt);",
+              "",
+              "// Store results for use in the request",
+              "pm.variables.set(\"prefixAddress\", networkIp);",
+              "",
+              "console.log(`Input: ${ip}/${prefixLen} -> Prefix address: ${networkIp}`);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"HTTP status code is 200\", function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "",
+              "const vlanId = json?.result?.id;",
+              "const vlanName = json?.result?.name;",
+              "",
+              "if (!vlanId || !vlanName) {",
+              "  throw new Error(\"Missing json.result.id and/or json.result.name in response.\");",
+              "}",
+              "",
+              "pm.environment.set(\"vlanId\", vlanId);",
+              "pm.environment.set(\"vlanName\", vlanName);",
+              "",
+              "pm.test(\"vlanId and vlanName set\", function () {",
+              "  pm.expect(pm.environment.get(\"vlanId\")).to.eql(vlanId);",
+              "  pm.expect(pm.environment.get(\"vlanName\")).to.eql(vlanName);",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"subnet\":\"{{mgmtCIDRPrefix}}\",\n    \"tag\":\"{{mgmtVLANTag}}\",\n    \"display_name\":\"gw2-mgmt\",\n    \"ip_range\":\"{{prefixAddress}}\",\n    \"zone\":\"Management Zone\",\n    \"per_network_dns\":\"\",\n    \"dhcp_service\":\"no_dhcp\",\n    \"dns_forwarding\":false,\n    \"dhcp_range\":\"\",\n    \"slash30_range\":\"\",\n    \"airgap_plus_mask\":0,\n    \"default_gateway\":\"{{gw2MgmtIp}}\",\n    \"gateways\":\"{{gateway2Id}}\",\n    \"interface\":\"ge3\",\n    \"name\":\"gw2-mgmt-{{clusterId}}\",\n    \"cluster_id\":{{clusterId}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Enable GW 2 Mgmt VLAN",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"{{vlanName}}\",\n    \"subnet\": \"{{mgmtCIDRPrefix}}\",\n    \"per_network_dns\": \"\",\n    \"status\": \"provisioned\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/update/{{vlanId}}",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "update",
+            "{{vlanId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Share Wireless GW 2 Mgmt VLAN to RT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 and no payload\", function () {",
+              "  pm.response.to.have.status(200);",
+              "",
+              "  const bodyText = pm.response.text();",
+              "  pm.expect(bodyText.trim(), \"Expected empty response body\").to.equal(\"{}\");",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"id\": \"{{vlanId}}\",\n    \"share_over_vpn\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{apiEndpoint}}v2/Network/share-over-vpn",
+          "host": [
+            "{{apiEndpoint}}v2"
+          ],
+          "path": [
+            "Network",
+            "share-over-vpn"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          "const base = pm.collectionVariables.get(\"apiEndpoint\");",
+          "if (!base) throw new Error(\"Missing collection variable: apiEndpoint\");",
+          "const authUrl = `${base.replace(/\\/$/, \"\")}/v3/api-key-auth/login`;",
+          "",
+          "",
+          "const SKEW_MS = 30 * 1000;",
+          "const ONE_HOUR_MS = 60 * 60 * 1000;",
+          "",
+          "function tokenValid() {",
+          "  const token = pm.environment.get(\"accessToken\");",
+          "  const expiresAt = Number(pm.environment.get(\"tokenExpires\") || 0);",
+          "  return token && expiresAt && (Date.now() + SKEW_MS) < expiresAt;",
+          "}",
+          "",
+          "if (!tokenValid()) {",
+          "  const apiKey = pm.collectionVariables.get(\"apiKey\");",
+          "  if (!apiKey) throw new Error(\"Missing collection variable: apiKey\");",
+          "",
+          "  pm.sendRequest({",
+          "    url: authUrl,",
+          "    method: \"POST\",",
+          "    header: { \"Content-Type\": \"application/json\", \"Accept\": \"application/json\" },",
+          "    body: { mode: \"raw\", raw: JSON.stringify({ api_key: apiKey }) }",
+          "  }, (err, res) => {",
+          "    if (err) throw err;",
+          "    if (!res || res.code >= 400) throw new Error(`Auth failed: HTTP ${res && res.code} - ${res && res.text()}`);",
+          "",
+          "    const data = res.json();",
+          "    const token = data?.result?.delegate_token;",
+          "    if (!token) throw new Error(\"Auth response missing result.delegate_token\");",
+          "",
+          "    pm.environment.set(\"accessToken\", token);",
+          "    pm.environment.set(\"tokenExpires\", String(Date.now() + ONE_HOUR_MS));",
+          "",
+          "    // rerun the original request",
+          "    postman.setNextRequest(pm.info.requestName);",
+          "  });",
+          "",
+          "  // stop current request until token is fetched",
+          "  postman.setNextRequest(null);",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "apiKey",
+      "value": ""
+    },
+    {
+      "key": "apiEndpoint",
+      "value": ""
+    }
+  ]
+}
